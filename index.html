@@ -21,7 +21,7 @@
             border: none;
         }
 
-        /* --- MODAL DE ATUALIZAÇÃO DO APK (ESTILO SNAPTUBE) --- */
+        /* --- MODAL DE ATUALIZAÇÃO (Fundo Escuro) --- */
         .fundo-modal {
             display: none; /* Escondido por padrão */
             position: fixed;
@@ -72,9 +72,8 @@
             display: block;
         }
 
-        /* BOTÃO DE UPDATE APK (VERMELHO) */
-        .btn-baixar-apk {
-            background: #ff4757; /* Vermelho vibrante */
+        /* BOTÃO DE AÇÃO (Cor definida via JS) */
+        .btn-acao {
             color: #fff;
             border: none;
             padding: 15px 0;
@@ -85,7 +84,7 @@
             width: 100%;
             display: block;
             margin-bottom: 15px;
-            box-shadow: 0 4px 20px rgba(255, 71, 87, 0.4);
+            box-shadow: 0 4px 20px rgba(0,0,0, 0.4);
             animation: pulse 2s infinite;
         }
 
@@ -107,7 +106,15 @@
             100% { transform: scale(1); }
         }
 
-        /* --- Aviso Pequeno (Update interno do site/SW) --- */
+        .destaque {
+            background: #444;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: white;
+        }
+
+        /* --- Aviso Discreto do Service Worker --- */
         #aviso-sw {
             display: none;
             position: fixed;
@@ -142,18 +149,17 @@
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation allow-modals allow-presentation allow-downloads">
     </iframe>
 
-    <div id="modal-apk-update" class="fundo-modal">
+    <div id="modal-update" class="fundo-modal">
         <div class="caixa-modal">
             <span class="icone-emoji">🚀</span>
-            <h3 class="titulo-modal">Nova Versão!</h3>
+            <h3 class="titulo-modal" id="modal-titulo">Nova Versão!</h3>
             
-            <p class="texto-instrucao">
-                Uma atualização importante está disponível.<br>
-                Baixe agora para corrigir erros e atualizar o ícone.
-            </p>
+            <div id="modal-texto" class="texto-instrucao">
+                Carregando...
+            </div>
 
-            <button id="btn-baixar-apk" class="btn-baixar-apk">BAIXAR APK AGORA ⬇️</button>
-            <button onclick="fecharModalAPK()" class="btn-cinza-outline">Lembrar depois</button>
+            <button id="btn-update-acao" class="btn-acao">ATUALIZAR</button>
+            <button onclick="fecharModal()" class="btn-cinza-outline">Lembrar depois</button>
         </div>
     </div>
 
@@ -163,14 +169,22 @@
     </div>
 
     <script>
-        // === CONFIGURAÇÃO ===
-        // Certifique-se de criar este arquivo na pasta deste projeto
         const URL_VERSAO = 'versao.json'; 
 
-        // ==========================================
-        // 1. LÓGICA "SNAPTUBE" (Verifica APK novo)
-        // ==========================================
-        async function verificarAtualizacaoAPK() {
+        // DETECTA SE É IPHONE
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        
+        // DETECTA SE É APP (APK ou Tela Cheia)
+        const isApp = window.matchMedia('(display-mode: standalone)').matches;
+
+        async function verificarAtualizacao() {
+            
+            // --- PROTEÇÃO: Se for site no navegador, não faz nada ---
+            if (!isApp) {
+                console.log("Aberto no navegador: Verificação de atualização APK ignorada.");
+                return; 
+            }
+
             try {
                 const resposta = await fetch(URL_VERSAO);
                 const dados = await resposta.json();
@@ -178,17 +192,15 @@
                 const versaoNoServidor = dados.versao_atual;
                 const linkApk = dados.link_apk;
 
-                // Usa uma chave de localStorage única para este app
-                // para não misturar com os outros apps da barbearia
+                // Memória exclusiva para este app
                 let versaoInstalada = localStorage.getItem('app_agendamento_interno_versao');
-                
                 if (!versaoInstalada) {
                     versaoInstalada = 1; 
                     localStorage.setItem('app_agendamento_interno_versao', 1);
                 }
 
                 if (versaoNoServidor > versaoInstalada) {
-                    abrirModalAPK(linkApk, versaoNoServidor);
+                    abrirModalInteligente(linkApk, versaoNoServidor);
                 }
 
             } catch (erro) {
@@ -196,28 +208,50 @@
             }
         }
 
-        function abrirModalAPK(link, novaVersao) {
-            const modal = document.getElementById('modal-apk-update');
-            const btn = document.getElementById('btn-baixar-apk');
+        function abrirModalInteligente(link, novaVersao) {
+            const modal = document.getElementById('modal-update');
+            const titulo = document.getElementById('modal-titulo');
+            const texto = document.getElementById('modal-texto');
+            const btn = document.getElementById('btn-update-acao');
             
             modal.style.display = 'flex';
 
-            btn.onclick = function() {
-                localStorage.setItem('app_agendamento_interno_versao', novaVersao);
-                window.location.href = link;
-                modal.style.display = 'none';
-            };
+            if (isIOS) {
+                // --- CONFIGURAÇÃO PARA IPHONE ---
+                titulo.innerText = "Atualize o Ícone";
+                texto.innerHTML = "Para ver o novo ícone no iPhone:<br><br>1. Saia e <strong>Remova</strong> este app.<br>2. Abra o site no Safari.<br>3. Toque em <span class='destaque'>Compartilhar</span> e <span class='destaque'>Adicionar à Tela de Início</span>.";
+                
+                btn.innerText = "Entendi";
+                btn.style.backgroundColor = "#007bff"; // Azul
+                btn.onclick = function() {
+                    // No iPhone marcamos como visto e fechamos
+                    localStorage.setItem('app_agendamento_interno_versao', novaVersao);
+                    modal.style.display = 'none';
+                };
+
+            } else {
+                // --- CONFIGURAÇÃO PARA ANDROID (APK) ---
+                titulo.innerText = "Nova Versão!";
+                texto.innerHTML = "Uma atualização importante está disponível.<br>Baixe agora para corrigir erros e atualizar o ícone.";
+                
+                btn.innerText = "BAIXAR APK ⬇️";
+                btn.style.backgroundColor = "#ff4757"; // Vermelho
+                btn.onclick = function() {
+                    localStorage.setItem('app_agendamento_interno_versao', novaVersao);
+                    window.location.href = link;
+                    modal.style.display = 'none';
+                };
+            }
         }
 
-        function fecharModalAPK() {
-            document.getElementById('modal-apk-update').style.display = 'none';
+        function fecharModal() {
+            document.getElementById('modal-update').style.display = 'none';
         }
 
-        setTimeout(verificarAtualizacaoAPK, 3000);
+        // Verifica 3 segundos após abrir
+        setTimeout(verificarAtualizacao, 3000);
 
-        // ==========================================
-        // 2. LÓGICA PADRÃO (Service Worker)
-        // ==========================================
+        // --- Service Worker (Lógica Padrão) ---
         if ('serviceWorker' in navigator) {
             let newWorker;
             navigator.serviceWorker.register('sw.js').then(reg => {
@@ -235,7 +269,6 @@
                     });
                 });
             });
-
             let refreshing;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
                 if (refreshing) return;
